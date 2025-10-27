@@ -5,6 +5,7 @@ import 'package:absensibi/pages/qr.dart';
 import 'package:absensibi/pages/calendar.dart';
 import 'package:absensibi/pages/permit.dart';
 import 'package:absensibi/pages/settings.dart';
+import 'package:absensibi/low_spec_animation.dart';
 
 class CurrentPage extends StatefulWidget {
   const CurrentPage({super.key});
