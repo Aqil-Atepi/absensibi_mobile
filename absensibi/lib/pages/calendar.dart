@@ -1,13 +1,15 @@
+// lib/pages/calendar.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:absensibi/pages/home.dart';
 import 'package:absensibi/pages/permit.dart';
 import 'package:absensibi/pages/qr.dart';
 import 'package:absensibi/pages/settings.dart';
+import 'package:absensibi/services/auth_service.dart';
+import 'package:absensibi/services/kalender_service.dart';
 
-// --- Shared look & feel ---
 const kPrimary = Colors.purple;
-const kBg = Color(0xFFF0F2F6); // keep as-is; change to 0xFFF4F4F6 if you prefer
+const kBg = Color(0xFFF0F2F6);
 
 class CalendarPage extends StatefulWidget {
   const CalendarPage({super.key});
@@ -17,16 +19,10 @@ class CalendarPage extends StatefulWidget {
 }
 
 class _CalendarPageState extends State<CalendarPage> {
-  int _month = DateTime.now().month; // 1..12
+  int _month = DateTime.now().month;
   int _year = DateTime.now().year;
-
-  DateTime get _visibleMonth => DateTime(_year, _month, 1);
-
-  final Map<int, Color> _markers = const {
-    1: Color(0xFF2AAE4A),
-    2: Color(0xFFE35151),
-    3: Color(0xFF6B35E0),
-  };
+  Map<int, Color> _markers = {};
+  bool _isLoading = false;
 
   static const List<String> _monthNames = [
     'January','February','March','April','May','June',
@@ -36,42 +32,111 @@ class _CalendarPageState extends State<CalendarPage> {
       List<int>.generate(2100 - 2020 + 1, (i) => 2020 + i);
 
   @override
+  void initState() {
+    super.initState();
+    _loadKalenderData();
+  }
+
+  DateTime get _visibleMonth => DateTime(_year, _month, 1);
+
+  // Load marker dari API
+  Future<void> _loadKalenderData() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final nis = await AuthService.getCurrentNis();
+      if (nis == null) return;
+
+      final result = await KalenderService.getKalenderData(
+        nis,
+        bulan: _month,
+        tahun: _year,
+      );
+
+      if (result['success'] == true && mounted) {
+        final Map<int, String> markerColors = result['marker_colors'];
+        
+        // Convert hex string to Color
+        final Map<int, Color> colorMap = {};
+        markerColors.forEach((day, hexColor) {
+          try {
+            final colorValue = int.parse(hexColor.replaceFirst('#', '0xFF'));
+            colorMap[day] = Color(colorValue);
+          } catch (e) {
+            print('Error parsing color $hexColor: $e');
+          }
+        });
+
+        setState(() {
+          _markers = colorMap;
+          _isLoading = false;
+        });
+      } else {
+        setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      print('Error loading kalender: $e');
+      setState(() => _isLoading = false);
+    }
+  }
+
+  // Reload saat ganti bulan/tahun
+  void _onMonthChanged(int newMonth) {
+    setState(() => _month = newMonth);
+    _loadKalenderData();
+  }
+
+  void _onYearChanged(int newYear) {
+    setState(() => _year = newYear);
+    _loadKalenderData();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: kBg,
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: kPrimary,                     // ⬅️ purple top bar
+        backgroundColor: kPrimary,
         centerTitle: true,
         leading: const BackButton(color: Colors.white),
         title: const Text(
           'Kalendar',
           style: TextStyle(
-            color: Colors.white,                       // white title
+            color: Colors.white,
             fontWeight: FontWeight.bold,
           ),
         ),
-        iconTheme: const IconThemeData(color: Colors.white), // white icons
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.only(bottom: 24),
-          child: Column(
-            children: [
-              const SizedBox(height: 12),
-              _MonthCard(
-                month: _visibleMonth,
-                markers: _markers,
-                monthNames: _monthNames,
-                years: _years,
-                selectedMonth: _month,
-                selectedYear: _year,
-                onChangedMonth: (m) => setState(() => _month = m),
-                onChangedYear: (y) => setState(() => _year = y),
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : RefreshIndicator(
+                onRefresh: _loadKalenderData,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.only(bottom: 24),
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 12),
+                      _MonthCard(
+                        month: _visibleMonth,
+                        markers: _markers,
+                        monthNames: _monthNames,
+                        years: _years,
+                        selectedMonth: _month,
+                        selectedYear: _year,
+                        onChangedMonth: _onMonthChanged,
+                        onChangedYear: _onYearChanged,
+                      ),
+                      const SizedBox(height: 20),
+                      // Legend
+                      _LegendCard(),
+                    ],
+                  ),
+                ),
               ),
-            ],
-          ),
-        ),
       ),
       bottomNavigationBar: _navBar(context),
     );
@@ -98,7 +163,7 @@ class _CalendarPageState extends State<CalendarPage> {
             onTap: () {},
             child: SvgPicture.asset(
               'assets/svg/calendar.svg', width: 26, height: 26,
-              colorFilter: const ColorFilter.mode(kPrimary, BlendMode.srcIn), // active
+              colorFilter: const ColorFilter.mode(kPrimary, BlendMode.srcIn),
             ),
           ),
           GestureDetector(
@@ -164,7 +229,7 @@ class _MonthCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final first = DateTime(month.year, month.month, 1);
     final daysInMonth = DateUtils.getDaysInMonth(month.year, month.month);
-    final leading = (first.weekday + 6) % 7; // Monday-first offset
+    final leading = (first.weekday + 6) % 7;
     final List<int?> cells = List<int?>.filled(42, null);
     for (int i = 0; i < daysInMonth; i++) {
       cells[leading + i] = i + 1;
@@ -182,7 +247,6 @@ class _MonthCard extends StatelessWidget {
         ),
         child: Column(
           children: [
-            // Month + Year dropdowns
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -218,7 +282,6 @@ class _MonthCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            // Weekdays
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: const [
@@ -226,7 +289,6 @@ class _MonthCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            // Days grid
             GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -266,7 +328,6 @@ class _MonthCard extends StatelessWidget {
               },
             ),
             const SizedBox(height: 6),
-            // Drag handle
             Container(
               width: 48, height: 5,
               decoration: BoxDecoration(
@@ -277,6 +338,65 @@ class _MonthCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _LegendCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 3))],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Keterangan',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+            ),
+            const SizedBox(height: 12),
+            _LegendItem(color: const Color(0xFF2AAE4A), label: 'Tepat Waktu'),
+            const SizedBox(height: 8),
+            _LegendItem(color: const Color(0xFFE35151), label: 'Telat'),
+            const SizedBox(height: 8),
+            _LegendItem(color: const Color(0xFF6B35E0), label: 'Sakit / Izin'),
+            const SizedBox(height: 8),
+            _LegendItem(color: const Color(0xFF999999), label: 'Alpha'),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LegendItem extends StatelessWidget {
+  final Color color;
+  final String label;
+
+  const _LegendItem({required this.color, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 20,
+          height: 20,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Text(label, style: const TextStyle(fontSize: 13)),
+      ],
     );
   }
 }

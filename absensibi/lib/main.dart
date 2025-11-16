@@ -1,7 +1,17 @@
 import 'package:flutter/material.dart';
 import 'pages/login.dart';
 
-void main() {
+// tambahin dua import ini
+import 'package:intl/intl.dart';
+import 'package:intl/date_symbol_data_local.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // init data locale untuk Bahasa Indonesia
+  await initializeDateFormatting('id_ID', null);
+  Intl.defaultLocale = 'id_ID'; // optional, tapi enak biar default Indo
+
   runApp(const MyApp());
 }
 

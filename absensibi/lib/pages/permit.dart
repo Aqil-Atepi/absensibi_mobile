@@ -1,4 +1,6 @@
+// lib/pages/permit.dart
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:image_picker/image_picker.dart';
@@ -9,6 +11,8 @@ import 'qr.dart';
 import 'settings.dart';
 import 'permithistory.dart';
 import 'package:absensibi/low_spec_animation.dart';
+import 'package:absensibi/services/auth_service.dart';
+import 'package:absensibi/services/izin_service.dart';
 
 class PermitPage extends StatefulWidget {
   const PermitPage({super.key});
@@ -26,6 +30,7 @@ class _PermitPageState extends State<PermitPage> {
   final _scrollCtrl = ScrollController();
 
   File? _photo;
+  String _selectedAlasan = 'Sakit'; // Default
 
   @override
   void dispose() {
@@ -45,9 +50,11 @@ class _PermitPageState extends State<PermitPage> {
     final f = File(x.path);
     final size = await f.length();
     if (size > kMaxBytes) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Foto tidak lebih dari 2 MB')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Foto tidak lebih dari 2 MB')),
+        );
+      }
       return;
     }
     setState(() => _photo = f);
@@ -95,28 +102,75 @@ class _PermitPageState extends State<PermitPage> {
       return;
     }
 
+    // Show loading
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (_) => const Center(child: CircularProgressIndicator()),
     );
-    await Future.delayed(const Duration(milliseconds: 900));
-    if (mounted) Navigator.pop(context);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Izin terkirim!')),
-    );
+    try {
+      final nis = await AuthService.getCurrentNis();
+      if (nis == null) {
+        if (mounted) Navigator.pop(context);
+        return;
+      }
 
-    setState(() {
-      _descCtrl.clear();
-      _photo = null;
-    });
+      // Convert foto ke base64
+      final bytes = await _photo!.readAsBytes();
+      final base64Image = base64Encode(bytes);
+
+      // Submit ke API
+      final result = await IzinService.submitIzin(
+        nis: nis,
+        alasan: _selectedAlasan,
+        deskripsi: desc,
+        fotoBase64: base64Image,
+      );
+
+      if (mounted) {
+        Navigator.pop(context); // Close loading
+
+        if (result['success'] == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result['message'] ?? 'Izin terkirim!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+
+          // Clear form
+          setState(() {
+            _descCtrl.clear();
+            _photo = null;
+            _selectedAlasan = 'Sakit';
+          });
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result['message'] ?? 'Gagal mengirim izin'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F4F6), // light gray bg
+      backgroundColor: const Color(0xFFF4F4F6),
       appBar: AppBar(
         elevation: 0,
         backgroundColor: kPrimary,
@@ -137,10 +191,55 @@ class _PermitPageState extends State<PermitPage> {
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
           child: Column(
             children: [
-              const _WhiteCard(
-                child: _DescField(),
+              // Dropdown Alasan
+              _WhiteCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Alasan Izin',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black54,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      value: _selectedAlasan,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'Sakit', child: Text('Sakit')),
+                        DropdownMenuItem(value: 'Izin', child: Text('Izin')),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() => _selectedAlasan = value);
+                        }
+                      },
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 12),
+              
+              // Deskripsi
+              _WhiteCard(
+                child: TextField(
+                  controller: _descCtrl,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    hintText: 'Deskripsi detail izin...',
+                    border: InputBorder.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              
+              // Upload foto
               _WhiteCard(
                 child: _photo == null
                     ? _UploadPlaceholder(onTap: _chooseImage)
@@ -151,14 +250,15 @@ class _PermitPageState extends State<PermitPage> {
                       ),
               ),
               const SizedBox(height: 12),
-              // Submit
+              
+              // Submit button
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: _submit,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: kPrimary,
+                    backgroundColor: kPrimary,
+                    foregroundColor: Colors.white,
                     elevation: 2,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
@@ -166,13 +266,14 @@ class _PermitPageState extends State<PermitPage> {
                     ),
                   ),
                   child: const Text(
-                    'Submit',
+                    'Submit Izin',
                     style: TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
               ),
               const SizedBox(height: 12),
-              // History
+              
+              // History button
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -191,7 +292,7 @@ class _PermitPageState extends State<PermitPage> {
                     ),
                   ),
                   child: const Text(
-                    'History',
+                    'Lihat History',
                     style: TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
@@ -200,8 +301,6 @@ class _PermitPageState extends State<PermitPage> {
           ),
         ),
       ),
-
-      // Bottom nav (Permit active)
       bottomNavigationBar: _navBar(context),
     );
   }
@@ -245,7 +344,7 @@ class _PermitPageState extends State<PermitPage> {
             onTap: () {},
             child: SvgPicture.asset(
               'assets/svg/permit.svg', width: 26, height: 26,
-              colorFilter: const ColorFilter.mode(kPrimary, BlendMode.srcIn), // active
+              colorFilter: const ColorFilter.mode(kPrimary, BlendMode.srcIn),
             ),
           ),
           GestureDetector(
@@ -261,7 +360,7 @@ class _PermitPageState extends State<PermitPage> {
   }
 }
 
-// ---------- UI bits ----------
+// ---------- UI Components ----------
 
 class _WhiteCard extends StatelessWidget {
   final Widget child;
@@ -280,23 +379,6 @@ class _WhiteCard extends StatelessWidget {
         ],
       ),
       child: child,
-    );
-  }
-}
-
-class _DescField extends StatelessWidget {
-  const _DescField();
-
-  @override
-  Widget build(BuildContext context) {
-    final state = context.findAncestorStateOfType<_PermitPageState>()!;
-    return TextField(
-      controller: state._descCtrl,
-      maxLines: 3,
-      decoration: const InputDecoration(
-        hintText: 'Deskripsi',
-        border: InputBorder.none,
-      ),
     );
   }
 }
