@@ -1,3 +1,5 @@
+import 'package:absensibi/models/user_model.dart';
+import 'package:absensibi/services/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:absensibi/pages/home.dart';
@@ -5,6 +7,7 @@ import 'package:absensibi/pages/calendar.dart';
 import 'package:absensibi/pages/permit.dart';
 import 'package:absensibi/pages/settings.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:intl/intl.dart';
 
 class QRPage extends StatefulWidget {
   const QRPage({super.key});
@@ -14,8 +17,31 @@ class QRPage extends StatefulWidget {
 }
 
 class _QRPageState extends State<QRPage> {
+  UserModel? user;
+  bool loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    loadUser();
+  }
+
+  Future<void> loadUser() async {
+    final currentUser = await AuthService.getCurrentUser();
+    setState(() {
+      user = currentUser;
+      loading = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (loading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         elevation: 0,
@@ -42,8 +68,17 @@ class _QRPageState extends State<QRPage> {
   }
 
   Container _QRCode() {
-    // The data that will be encoded into the QR code
-    const String data = "https://absensibi.example.com/user/12345";
+    // 🕒 Get today’s date in YYYY-MM-DD format
+    final String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+    final String time = DateFormat('HH:mm').format(DateTime.now());
+
+    // 🧍‍♂️ Insert user NIS
+    final String nis = user?.nis ?? "";
+
+    // 🔗 Dynamic URL for QR
+    final String data =
+        "http://localhost/web/absensibi/pages/admin/scan.php?siswa=$nis&tanggal=$today&waktu=$time";
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 40),
@@ -71,23 +106,15 @@ class _QRPageState extends State<QRPage> {
           ),
           const SizedBox(height: 20),
 
-          // ✅ The actual QR code
+          // 🟣 The actual QR code
           QrImageView(
             data: data,
             version: QrVersions.auto,
-            size: 200.0,
+            size: 300.0,
             backgroundColor: Colors.white,
           ),
 
           const SizedBox(height: 20),
-          Text(
-            data,
-            style: const TextStyle(
-              fontSize: 14,
-              color: Colors.grey,
-            ),
-            textAlign: TextAlign.center,
-          ),
         ],
       ),
     );
@@ -135,19 +162,17 @@ class _QRPageState extends State<QRPage> {
             ),
           ),
 
-          // 🔘 Middle QR Button (Static circular background)
+          // 🔘 Middle QR Button
           GestureDetector(
-            onTap: () {
-              // current page - no navigation
-            },
+            onTap: () {},
             child: Container(
               padding: const EdgeInsets.all(14),
               decoration: const BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.purple, // circular background color
+                color: Colors.purple,
               ),
               child: SvgPicture.asset(
-                'assets/svg/x.svg', // your QR SVG icon
+                'assets/svg/x.svg',
                 width: 26,
                 height: 26,
                 colorFilter:

@@ -4,7 +4,7 @@ class ApiConfig {
   // gunakan 10.0.2.2
   // Untuk HP fisik: ganti dengan IP PC, misal 192.168.1.16
   //static const String baseUrl = 'http://10.0.2.2/backend/api';
- static const String baseUrl = 'http://192.168.1.16/backend/api';
+ static const String baseUrl = 'http://10.37.220.56/api/absensibi_api/api';
 
   // Endpoints
   static const String login = '$baseUrl/auth/login.php';
