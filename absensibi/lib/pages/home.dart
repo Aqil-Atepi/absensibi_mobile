@@ -205,8 +205,6 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                const RepaintBoundary(child: _TeacherTile()),
-                const SizedBox(height: 10),
                 // Riwayat Izin dengan sisa izin real
                 RepaintBoundary(
                   child: GestureDetector(
@@ -220,15 +218,6 @@ class _HomePageState extends State<HomePage> {
                       subtitleTop: 'SISA IZIN ${_laporan?.sisaIzin ?? 0}/7',
                       subtitleBottom: 'Semester Ganjil 25/26',
                     ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                // Riwayat Kehadiran
-                const RepaintBoundary(
-                  child: _BigSectionCard.calendar(
-                    title: 'Riwayat Kehadiran',
-                    subtitleTop: '13 August 2025',
-                    subtitleBottom: 'Semester Ganjil 25/26',
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -476,63 +465,6 @@ class _ReportRow extends StatelessWidget {
         const Text(':  ', style: const TextStyle(fontSize: 12)),
         Text(value, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
       ],
-    );
-  }
-}
-
-class _TeacherTile extends StatelessWidget {
-  const _TeacherTile();
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 8)],
-        ),
-        child: Row(
-          children: [
-            Container(
-              decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFEFF3FF)),
-              padding: const EdgeInsets.all(8),
-              child: const Icon(Icons.person, color: _HomePageState.kPrimary),
-            ),
-            const SizedBox(width: 12),
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Rizam Nuruzzaman, M.Pd.',
-                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Colors.black)),
-                  SizedBox(height: 2),
-                  Text('Produk Kreatif dan Kewirausahaan 2',
-                      style: TextStyle(fontSize: 11, color: _HomePageState.kTextMuted)),
-                  SizedBox(height: 2),
-                  Text('Semester GANJIL 25/26 · Ruangan A9',
-                      style: TextStyle(fontSize: 11, color: _HomePageState.kTextMuted)),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE8F7FF),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Text('10:06', style: TextStyle(fontWeight: FontWeight.w600)),
-                ),
-              ],
-            )
-          ],
-        ),
-      ),
     );
   }
 }
